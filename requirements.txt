@@ -1,3 +1,6 @@
 PyDirectInput
 PyAutoGui
 opencv-python
+
+pytesseract
+matplotlib

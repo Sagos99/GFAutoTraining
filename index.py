@@ -1,32 +1,39 @@
+from configparser   import ConfigParser
+from time           import sleep
+
 import pydirectinput as pdi
-from time import sleep
 import pyautogui
 
 
 
+# Carrega o arquivo de configuração
+parser = ConfigParser()
+parser.read('config.ini', encoding='UTF-8')
+
+
 sprites = {
     'one': {
-        'button': 'f1',
-        'training': True,
-        'collecting': False
+        'button': parser['sprite1']['button'],
+        'training': True if parser['sprite1']['training'] == 'yes' else False,
+        'collecting': True if parser['sprite1']['collecting'] == 'yes' else False
     },
 
     'second': {
-        'button': 'f2',
-        'training': True,
-        'collecting': True
+        'button': parser['sprite2']['button'],
+        'training': True if parser['sprite2']['training'] == 'yes' else False,
+        'collecting': True if parser['sprite2']['collecting'] == 'yes' else False
     },
 
     'third': {
-        'button': 'f3',
-        'training': False,
-        'collecting': True
+        'button': parser['sprite3']['button'],
+        'training': True if parser['sprite3']['training'] == 'yes' else False,
+        'collecting': True if parser['sprite3']['collecting'] == 'yes' else False
     }
 }
 
 
 
-def mouse_click(x, y, amount=1, fast=False):
+def mouse_click(x, y, amount=1, fast=False, right=False):
     pyautogui.moveTo(x, y)
 
     if not fast:
@@ -36,8 +43,12 @@ def mouse_click(x, y, amount=1, fast=False):
         amount = 1
     
     for x in range(amount):
-        pdi.mouseDown()
-        pdi.mouseUp()
+        if not right:
+            pdi.mouseDown(button='left')
+            pdi.mouseUp(button='left')
+        else:
+            pdi.mouseDown(button='right')
+            pdi.mouseUp(button='right')
 
     if not fast:
         sleep(0.2)
@@ -67,7 +78,6 @@ def improve_mood():
 
     if x and y:
         mouse_click(x, y, amount=10)
-        sleep(0.5)
 
 
 
@@ -121,7 +131,65 @@ def verify_state():
 
 
 
+def verify_energy():
+    try:
+        x, y = pyautogui.locateCenterOnScreen('img/resistencia.png', confidence=0.9)
+    except:
+        x, y = None, None
+
+    if x and y:
+        return True
+    else:
+        return False
+
+
+
+def verify_mood():
+    humor_atual = None
+    humor_setado = f'humor_{parser["geral"]["humor"].lower()}'
+
+    humores = {
+        'humor_feliz'       : 4,
+        'humor_alegre'      : 3,
+        'humor_normal'      : 2,
+        'humor_triste'      : 1,
+        'humor_depressivo'  : 0
+    }
+
+    for humor in humores:
+        try:
+            x, y = pyautogui.locateCenterOnScreen(f'img/{humor}.png', confidence=0.8)
+            humor_atual = humor
+            break
+        except:
+            x, y = None, None
+
+    if x and y:
+        if humores[humor_atual] <= humores[humor_setado]:
+            return True
+    
+    return False
+
+
+
+def use_item(sprite_button, item):
+    pdi.press(parser['geral']['bag_button'])
+
+    try:
+        x_item, y_item = pyautogui.locateCenterOnScreen(f'img/{item}.png', confidence=0.8)
+    except:
+        x_item, y_item = None, None
+
+    if x_item and y_item:
+        mouse_click(x_item, y_item, right=True)
+        pdi.press(sprite_button)
+
+    pdi.press(parser['geral']['bag_button'])
+
+
+
 def sprite_is_back():
+    need_cookie = False
     sleep(3)
 
     try:
@@ -134,8 +202,11 @@ def sprite_is_back():
     if x and y:
         mouse_click(x, y, fast=True)
         mouse_click(x_detalhes, y_detalhes, fast=True)
+        need_cookie = verify_energy()
         mouse_click(x_detalhes-50, y_detalhes, fast=True) # aba sprite
         mouse_click(x, y, fast=True)
+
+    return need_cookie
 
 
 
@@ -145,8 +216,20 @@ def run():
             pdi.press(sprites[sprite]['button'])
             
             if not verify_state():
-                sprite_is_back()
+                need_cookie = sprite_is_back()
                 improve_mood()
+
+                if sprite != 'one':
+                    need_soda = verify_mood()
+
+                    if need_soda:
+                        use_item(sprites[sprite]['button'], 'item_refri')
+
+                    if need_cookie:
+                        if need_soda:
+                            sleep(5)
+
+                        use_item(sprites[sprite]['button'], 'item_biscoito')
 
                 if sprites[sprite]['training']:
                     go_training()
